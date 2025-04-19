@@ -9,14 +9,12 @@
 from datetime import datetime
 import traceback
 import sys
-# import os
-# import threading
-
-from GameParser import GameHistory
 
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+
+from GameParser import GameHistory
 
 
 class BorderedBox(QWidget):
@@ -80,37 +78,36 @@ class Region(BorderedBox):
             if child.widget():
                 child.widget().deleteLater()
 
-    # TODO: Gotta be a smarter way to recursively add cards here, but this works for now
-    # TODO: To get the real order of cards, we need to look at the playerData.
-    # The "cards" struct lists them in an arbitrary order.
-    # getRegionContents may also need to be refactored to reflect this.
-    def addCards(self, carddata, currentParent=None, parentNums=None):
-        cardNum = 1
+    def _addChildCards(self, contents, cardID, cardNum):  # Annoyingly similar to addCards, but not sure how to wed
+        card = contents["carddata"][cardID]
+        self.cardlistWidget.layout().addWidget(Card(str(cardNum), card))
 
-        if currentParent is None:
-            for c1 in carddata:
-                isTopLevel = True
-                for c2 in carddata:
-                    if "cards" in c2.keys() and c1["id"] in c2["cards"]:
-                        isTopLevel = False
-                        break
+        if "cards" in card.keys():
+            childCounter = 0
+            for childID in card["cards"]:
+                childCounter += 1
+                childNum = str(cardNum) + "." + str(childCounter)
+                self._addChildCards(contents, childID, childNum)
 
-                if isTopLevel:  # Top level cards are present in the regions data, so could use that
-                    fullNum = (str(cardNum) if not parentNums else parentNums + "." + str(cardNum))
-                    # self.layout().addWidget(Card(str(fullNum), c1))
-                    self.cardlistWidget.layout().addWidget(Card(str(fullNum), c1))
-                    self.addCards(carddata, c1["id"], fullNum)
-                    cardNum += 1
-        else:
-            for c1 in carddata:
-                if c1["id"] == currentParent and "cards" in c1.keys():
-                    for c2 in carddata:
-                        if c2["id"] in c1["cards"]:
-                            fullNum = parentNums + "." + str(cardNum)
-                            # self.layout().addWidget(Card(str(fullNum), c2))
-                            self.cardlistWidget.layout().addWidget(Card(str(fullNum), c2))
-                            self.addCards(carddata, c2["id"], fullNum)
-                            cardNum += 1
+    def addCards(self, contents):
+        if "cards" not in contents["region"].keys():
+            return  # region is empty
+
+        # print(contents["region"])
+
+        cardCounter = 0
+        for cardID in contents["region"]["cards"]:
+            cardCounter += 1
+            cardNum = str(cardCounter)
+            card = contents["carddata"][cardID]
+            self.cardlistWidget.layout().addWidget(Card(str(cardNum), card))
+
+            if "cards" in card.keys():
+                childCounter = 0
+                for childID in card["cards"]:
+                    childCounter += 1
+                    childNum = str(cardNum) + "." + str(childCounter)
+                    self._addChildCards(contents, childID, childNum)  # Children are added recursively
 
 
 class PlayerPanel(BorderedBox):
@@ -157,9 +154,9 @@ class PlayerPanel(BorderedBox):
         # print(turn, player)
         for r in self.regions:
             if r.name not in ("Library", "Crypt") or True:
-                cards = s_game.getRegionContents(player, r.name)  # TODO: Refactor relationship between instances
+                contents = s_game.getRegionContents(player, r.name)
                 r.clear()
-                r.addCards(cards)
+                r.addCards(contents)
 
     def setCurrentPlayer(self, current):
         if current:
@@ -179,7 +176,7 @@ class Table(QWidget):
         self.players = list()
 
         for player in initialState["playerOrder"]:
-            print(player)
+            # print(player)
             p: PlayerPanel = PlayerPanel(player)
             self.players.append(p)
             self.layout().addWidget(p)
@@ -191,10 +188,6 @@ class Table(QWidget):
         for p in self.players:
             p.loadTurn(turn, self.players.index(p) + 1)
             p.setCurrentPlayer(self.players.index(p) + 1 == player)
-        # while self.layout().count():
-        #     child = self.layout().itemAt(0)
-        #     if child.widget():
-        #         child.widget().deleteLater()
 
     def poolChanged(self, player, change):
         pass
@@ -342,13 +335,16 @@ def main():
         app: QApplication = QApplication(sys.argv)
         window: QMainWindow = MainWindow()
         window.setMinimumSize(1800, 800)
+        geo = window.frameGeometry()
+        geo.moveCenter(QDesktopWidget().availableGeometry().center())
+        window.move(geo.topLeft())
         window.show()
         return app.exec()
 
     except KeyboardInterrupt:
         print("\n-- Ctrl^C ---")
 
-    except ex:
+    except:
         print("\n")
         traceback.print_exc()
 

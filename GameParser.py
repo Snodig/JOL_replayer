@@ -20,7 +20,7 @@ class GameHistory(QObject):
     def __init__(self, gameDir):
         super().__init__()
 
-        self.gameDir = os.getcwd() + "\\res\\games\\" + gameDir
+        self.gameDir = os.path.dirname(os.path.realpath(__file__)) + "\\games\\" + gameDir
         actions = list()
         for root, dirs, files in os.walk(self.gameDir):
             for filename in files:
@@ -64,7 +64,7 @@ class GameHistory(QObject):
         try:
             with open(self.gameDir + "\\actions-" + turnNum + ".json", encoding="utf-8") as f:
                 actions = json.load(f)
-        except ex:
+        except:
             traceback.print_exc()
             print("No such turn", turnNum)
 
@@ -91,7 +91,7 @@ class GameHistory(QObject):
         try:
             with open(self.gameDir + "\\game-" + turnNum + ".json", encoding="utf-8") as f:
                 state = json.load(f)
-        except ex:
+        except:
             traceback.print_exc()
             print("No such turn", turnNum)
 
@@ -117,23 +117,32 @@ class GameHistory(QObject):
         if currentPlayer is None:
             currentPlayer = self.currentPlayer
 
-        region = region.lower().replace("_", " ")
+        if str(player).isnumeric():  # Passed a player number
+            player = self.getPlayers()[player - 1]
+
+        region = region.upper().replace(" ", "_")
         state = self.getState()
 
         regionIDs = dict()  # TODO: Could be a persistent set, unless that fucks with swapped players
         for r, data in self.getPlayerData(player)["regions"].items():
-            regionIDs[r.lower().replace("_", " ")] = data["id"]
+            regionIDs[r.upper().replace(" ", "_")] = data["id"]
 
-        # print(state["cards"].values())
+        # print(state["cards"])
+        # print(list(state["cards"].items())[0])
 
-        cards = list(filter(lambda x: x["region"] == regionIDs[region], state["cards"].values()))
+        cards = dict(filter(lambda x: x[1]["region"] == regionIDs[region], state["cards"].items()))
+
+        regionContents = dict()
+        regionContents["region"] = state["players"][player]["regions"][region]
+        regionContents["carddata"] = cards
+
         # if len(cards) == 0:
         #    print(f"Player {player} has no '{region}'' contents for turn {turn}")
 
         # if(player == "Ankha"):
         #    print(player, region, regionIDs[region], "\n", cards)
 
-        return cards
+        return regionContents
 
     def emitTurnChanged(self):
         if self.currentState is None:
@@ -143,12 +152,14 @@ class GameHistory(QObject):
         else:
             # print("State:", state)
             # print("Actions:", actions)
-            print("turn " + self.currentActions["turnId"], self.currentActions)
+            # print("turn " + self.currentActions["turnId"], self.currentActions)
             self.turnChanged.emit(self.currentTurn, self.currentPlayer, self.getState(), self.getActions())
 
     def nextTurn(self, endOfTurn=False):
         if self.currentPlayer < len(self.turns[self.currentTurn]):
-            self.currentPlayer += 1  # TODO: Looks like players keep existing, but gamedata files do not
+            self.currentPlayer += 1
+            # TODO: Looks like players keep existing, but gamedata files do not
+            # Need to move forward until we find a player who is still alive
         elif self.currentTurn < len(self.turns):
             # TODO: also set current player to first player alive in that turn
             self.currentPlayer = 1  # temp
