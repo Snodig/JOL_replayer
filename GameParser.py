@@ -12,6 +12,7 @@ import traceback
 
 from PyQt5.QtCore import *
 
+
 class GameHistory(QObject):
     turnChanged = pyqtSignal(int, int, dict, list, name="turnChanged")
     poolChanged = pyqtSignal(int, int, name="poolChanged")
@@ -19,7 +20,7 @@ class GameHistory(QObject):
     def __init__(self, gameDir):
         super().__init__()
 
-        self.gameDir = os.getcwd() + "\\" + gameDir
+        self.gameDir = os.getcwd() + "\\res\\games\\" + gameDir
         actions = list()
         for root, dirs, files in os.walk(self.gameDir):
             for filename in files:
@@ -53,7 +54,7 @@ class GameHistory(QObject):
         return self.firstState["players"][player]["regions"]
 
     def loadActions(self, turn, player):
-        if not str(player).isnumeric(): # Passed a player name
+        if not str(player).isnumeric():  # Passed a player name
             player = self.getPlayers().index(player)
 
         turnNum = str(turn) + "-" + str(player)
@@ -61,36 +62,36 @@ class GameHistory(QObject):
         actions = None
 
         try:
-            with open(self.gameDir + "\\actions-"+turnNum+".json", encoding="utf-8") as f:
+            with open(self.gameDir + "\\actions-" + turnNum + ".json", encoding="utf-8") as f:
                 actions = json.load(f)
-        except:
+        except ex:
             traceback.print_exc()
             print("No such turn", turnNum)
 
         self.currentActions = actions
         self.currentActionIx = 0
-        #print(len(self.currentActions["chats"]), self.currentActions["chats"])
+        # print(len(self.currentActions["chats"]), self.currentActions["chats"])
 
         return self.getActions()
 
     def getActions(self):
-        #print(self.currentActions)
-        if self.currentActions == None:
+        # print(self.currentActions)
+        if self.currentActions is None:
             return None
-        return self.currentActions["chats"][:self.currentActionIx+1]
+        return self.currentActions["chats"][:self.currentActionIx + 1]
 
     def loadState(self, turn, player):
-        if not str(player).isnumeric(): # Passed a player name
-            player = self.getPlayers().index(player)+1
+        if not str(player).isnumeric():  # Passed a player name
+            player = self.getPlayers().index(player) + 1
 
         turnNum = str(turn) + "-" + str(player)
 
         state = None
 
         try:
-            with open(self.gameDir + "\\game-"+turnNum+".json", encoding="utf-8") as f:
+            with open(self.gameDir + "\\game-" + turnNum + ".json", encoding="utf-8") as f:
                 state = json.load(f)
-        except:
+        except ex:
             traceback.print_exc()
             print("No such turn", turnNum)
 
@@ -102,63 +103,63 @@ class GameHistory(QObject):
         return self.currentState
 
     def getPlayerData(self, player):
-        if str(player).isnumeric(): # Passed a player number
-            player = self.getPlayers()[player-1]
+        if str(player).isnumeric():  # Passed a player number
+            player = self.getPlayers()[player - 1]
 
         return self.getState()["players"][player]
 
     def getRegionContents(self, player, region, turn=None, currentPlayer=None):
-        if turn == None:
+        if turn is None:
             turn = self.currentTurn
             if turn > 1:
-                 turn -= 1 #We want the state from the end of last turn
+                turn -= 1  # We want the state from the end of last turn
 
-        if currentPlayer == None:
+        if currentPlayer is None:
             currentPlayer = self.currentPlayer
 
         region = region.lower().replace("_", " ")
         state = self.getState()
 
-        regionIDs = dict() # TODO: Could be a persistent set, unless that fucks with swapped players
+        regionIDs = dict()  # TODO: Could be a persistent set, unless that fucks with swapped players
         for r, data in self.getPlayerData(player)["regions"].items():
             regionIDs[r.lower().replace("_", " ")] = data["id"]
 
-        #print(state["cards"].values())
+        # print(state["cards"].values())
 
         cards = list(filter(lambda x: x["region"] == regionIDs[region], state["cards"].values()))
-        #if len(cards) == 0:
+        # if len(cards) == 0:
         #    print(f"Player {player} has no '{region}'' contents for turn {turn}")
 
-        #if(player == "Ankha"):
+        # if(player == "Ankha"):
         #    print(player, region, regionIDs[region], "\n", cards)
 
         return cards
 
     def emitTurnChanged(self):
-        if self.currentState == None:
+        if self.currentState is None:
             print("Unable to get state data for turn", self.currentTurn, self.currentPlayer)
-        elif self.currentActions == None:
+        elif self.currentActions is None:
             print("Unable to get action data for turn", self.currentTurn, self.currentPlayer)
         else:
-            #print("State:", state)
-            #print("Actions:", actions)
+            # print("State:", state)
+            # print("Actions:", actions)
             print("turn " + self.currentActions["turnId"], self.currentActions)
             self.turnChanged.emit(self.currentTurn, self.currentPlayer, self.getState(), self.getActions())
 
     def nextTurn(self, endOfTurn=False):
         if self.currentPlayer < len(self.turns[self.currentTurn]):
-            self.currentPlayer += 1 # TODO: Looks like players keep existing, but gamedata files do not
+            self.currentPlayer += 1  # TODO: Looks like players keep existing, but gamedata files do not
         elif self.currentTurn < len(self.turns):
             # TODO: also set current player to first player alive in that turn
-            self.currentPlayer = 1 #temp
+            self.currentPlayer = 1  # temp
             self.currentTurn += 1
         else:
-            return # No such turn
+            return  # No such turn
 
         self.loadTurnData()
 
-        if endOfTurn and self.currentActions != None:
-            self.currentActionIx = len(self.currentActions["chats"])-1
+        if endOfTurn and self.currentActions is not None:
+            self.currentActionIx = len(self.currentActions["chats"]) - 1
         else:
             self.currentActionIx = 0
 
@@ -169,15 +170,15 @@ class GameHistory(QObject):
             self.currentPlayer -= 1
         elif self.currentTurn > 1:
             # TODO: also set current player to last player alive in that turn
-            self.currentPlayer = 5 #temp
+            self.currentPlayer = 5  # temp
             self.currentTurn -= 1
         else:
-            return # At start of game
+            return  # At start of game
 
         self.loadTurnData()
 
-        if endOfTurn and self.currentActions != None:
-            self.currentActionIx = len(self.currentActions["chats"])-1
+        if endOfTurn and self.currentActions is not None:
+            self.currentActionIx = len(self.currentActions["chats"]) - 1
         else:
             self.currentActionIx = 0
 
@@ -188,9 +189,9 @@ class GameHistory(QObject):
         self.loadActions(self.currentTurn, self.currentPlayer)
 
     def nextAction(self):
-        if self.currentActionIx < len(self.currentActions["chats"])-1:
+        if self.currentActionIx < len(self.currentActions["chats"]) - 1:
             self.currentActionIx += 1
-            self.emitTurnChanged() # TODO: This probably won't cut it once actions are parsed to determine state
+            self.emitTurnChanged()  # TODO: This probably won't cut it once actions are parsed to determine state
         else:
             self.nextTurn()
 
